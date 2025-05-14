@@ -1,28 +1,41 @@
 // routes/weather.js
 const express = require('express');
-const axios = require('axios');
 const router = express.Router();
+const { getWeatherForecast } = require('../services/weatherService');
 
-const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1/forecast';
-
-// Ramalan cuaca
+/**
+ * @route GET /api/weather
+ * @description Get weather forecast for a specific location and date
+ * @param {number} lat - Latitude
+ * @param {number} lon - Longitude
+ * @param {string} date - Date in YYYY-MM-DD format (default: today)
+ * @returns {Object} Weather forecast data
+ */
 router.get('/', async (req, res) => {
-  const { lat, lon, date } = req.query;
-  try {
-    const response = await axios.get(OPEN_METEO_BASE, {
-      params: {
-        latitude: lat,
-        longitude: lon,
-        hourly: 'temperature_2m,weathercode',
-        start_date: date,
-        end_date: date,
-        timezone: 'auto'
-      }
-    });
+  const { lat, lon, date = new Date().toISOString().split('T')[0] } = req.query;
 
-    res.json(response.data);
+  // Validate parameters
+  if (!lat || !lon) {
+    return res.status(400).json({ 
+      success: false,
+      message: 'Latitude dan longitude diperlukan'
+    });
+  }
+
+  try {
+    const weatherData = await getWeatherForecast(lat, lon, date);
+    
+    res.json({
+      success: true,
+      data: weatherData
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Gagal mengambil cuaca', error: error.message });
+    console.error('Weather route error:', error);
+    res.status(500).json({ 
+      success: false,
+      message: 'Gagal mengambil data cuaca', 
+      error: error.message 
+    });
   }
 });
 
