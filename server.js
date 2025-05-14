@@ -8,6 +8,12 @@ const placeRoutes = require('./routes/places');
 const estimateRoutes = require('./routes/estimate');
 const weatherRoutes = require('./routes/weather');
 const flightRoutes = require('./routes/flight');
+const cors = require('cors');
+
+// Enable CORS for your frontend origin
+app.use(cors({
+  origin: 'http://localhost:3001' // Your frontend URL
+}));
 
 connectDB();
 app.use(express.json());
