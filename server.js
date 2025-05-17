@@ -15,6 +15,7 @@ const morgan = require('morgan');
 // Import routes
 const weatherRoutes = require('./routes/weather');
 const detailsRoutes = require('./routes/details');
+const geocodeRoutes = require('./routes/geocode');
 
 // Enable CORS for your frontend origin
 app.use(cors({
@@ -35,6 +36,7 @@ app.use(morgan('dev'));
 connectDB();
 app.use(express.json());
 
+app.use('/api/geocode', geocodeRoutes); 
 app.use('/auth', authRoutes);
 app.use('/plans', planRoutes);
 app.use('/api/places', placeRoutes);
