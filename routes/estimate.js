@@ -1,23 +1,30 @@
 // routes/estimate.js
 const express = require('express');
-const estimateService = require('../services/estimateService');
-const flightService = require('../services/flightService');
-const weatherService = require('../services/weatherService');
-const calculateDistance = require('../utils/calculateDistance');
 const router = express.Router();
+const { calculateEstimation } = require('../services/estimateService');
 
-router.post('/', async (req, res) => {
-  const { pricePerDay, startDate, endDate, flightCost, lat1, lon1, lat2, lon2 } = req.body;
-
-  const distance = calculateDistance(lat1, lon1, lat2, lon2);
-  const estimation = estimateService.calculateEstimation(pricePerDay, startDate, endDate, flightCost);
-  const weather = await weatherService.getWeatherForecast(lat2, lon2, startDate);
-
-  res.json({
-    distance,
-    estimation,
-    weather
-  });
+router.post('/', (req, res) => {
+  const { pricePerDay, startDate, endDate, flightCost, adults, children } = req.body;
+  
+  if (!pricePerDay || !startDate || !endDate) {
+    return res.status(400).json({ message: 'Required parameters missing' });
+  }
+  
+  try {
+    const estimation = calculateEstimation(
+      pricePerDay, 
+      startDate, 
+      endDate, 
+      flightCost || 0,
+      adults || 1,
+      children || 0
+    );
+    
+    res.json(estimation);
+  } catch (error) {
+    console.error('Error calculating estimation:', error);
+    res.status(500).json({ message: 'Error calculating estimation' });
+  }
 });
 
 module.exports = router;
