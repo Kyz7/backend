@@ -1,10 +1,8 @@
-// routes/weather.js
-const express = require('express');
-const router = express.Router();
+// routes/weather.jsconst express = require('express');const router = express.Router();
 const { getWeatherForecast } = require('../services/weatherService');
 
 /**
- * @route GET /api/weather
+ * @route
  * @description Get weather forecast for a specific location and date
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude

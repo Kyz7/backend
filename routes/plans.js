@@ -3,7 +3,6 @@ const router = express.Router();
 const Plan = require('../models/Plan');
 const auth = require('../utils/authMiddleware');
 
-// Simpan rencana (hanya untuk user login)
 router.post('/', auth, async (req, res) => {
   try {
     const plan = await Plan.create({ ...req.body, user: req.user.id });
@@ -13,7 +12,6 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// Lihat semua rencana user
 router.get('/', auth, async (req, res) => {
   try {
     const plans = await Plan.find({ user: req.user.id });

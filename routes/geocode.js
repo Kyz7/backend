@@ -1,16 +1,10 @@
-// File: routes/geocode.js
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 
-// Get SerpAPI Key from environment variables
 const SERPAPI_API_KEY = process.env.SERPAPI_KEY;
 const SERPAPI_URL = 'https://serpapi.com/search';
 
-/**
- * API endpoint to convert address/location name to latitude/longitude coordinates
- * Using SerpAPI with Google Maps engine
- */
 router.get('/', async (req, res) => {
   const { address } = req.query;
 
@@ -18,7 +12,6 @@ router.get('/', async (req, res) => {
     return res.status(400).json({ message: 'Parameter address diperlukan' });
   }
 
-  // Validate API key exists
   if (!SERPAPI_API_KEY) {
     console.error('SERPAPI_KEY is not defined in environment variables');
     return res.status(500).json({ 
@@ -30,7 +23,6 @@ router.get('/', async (req, res) => {
   try {
     console.log(`🔍 Attempting geocoding for: "${address}"`);
     
-    // Use SerpAPI with Google Maps engine to get location data
     const response = await axios.get(SERPAPI_URL, {
       params: {
         engine: 'google_maps',
@@ -40,18 +32,14 @@ router.get('/', async (req, res) => {
         gl: 'ID',
         api_key: SERPAPI_API_KEY
       },
-      // Add timeout to prevent hanging requests
-      timeout: 10000
+      timeout: 15000
     });
 
-    // Verify we got a valid response
     if (!response.data) {
       throw new Error('Empty response from SerpAPI');
     }
 
-    // Extract location data from response
     if (response.data.search_metadata && response.data.search_parameters) {
-      // First attempt: Look for coordinates in 'data_locations' if available
       if (response.data.data_locations && response.data.data_locations.length > 0) {
         for (const location of response.data.data_locations) {
           if (location && location.latitude && location.longitude) {
@@ -74,8 +62,6 @@ router.get('/', async (req, res) => {
         }
       }
       
-      // Second attempt: SerpAPI usually includes location data as 'll' in search_parameters
-      // Format: @lat,lng,zoom
       const locationString = response.data.search_parameters.ll || '';
       const matches = locationString.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       
@@ -97,9 +83,7 @@ router.get('/', async (req, res) => {
         return res.json(geocodeResult);
       } 
       
-      // Third attempt: Try to extract from local_results if available
       if (response.data.local_results && response.data.local_results.length > 0) {
-        // Try first result, then go through all results looking for gps_coordinates
         for (const result of response.data.local_results) {
           if (result.gps_coordinates) {
             const { latitude, longitude } = result.gps_coordinates;
@@ -120,7 +104,6 @@ router.get('/', async (req, res) => {
         }
       }
       
-      // Fourth attempt: Try maps_results if available
       if (response.data.maps_results && response.data.maps_results.length > 0) {
         for (const result of response.data.maps_results) {
           if (result.gps_coordinates) {
@@ -142,7 +125,6 @@ router.get('/', async (req, res) => {
         }
       }
       
-      // Fifth attempt: Try knowledge_graph as a last resort
       if (response.data.knowledge_graph && response.data.knowledge_graph.gps_coordinates) {
         const { latitude, longitude } = response.data.knowledge_graph.gps_coordinates;
         
@@ -160,7 +142,48 @@ router.get('/', async (req, res) => {
         return res.json(geocodeResult);
       }
       
-      // Last attempt: If all else failed but we have search information, try to get coordinates from it
+      if (response.data.place_results) {
+        const placeResults = response.data.place_results;
+        
+        if (placeResults.gps_coordinates && 
+            placeResults.gps_coordinates.latitude && 
+            placeResults.gps_coordinates.longitude) {
+          
+          const { latitude, longitude } = placeResults.gps_coordinates;
+          
+          const geocodeResult = {
+            results: [{
+              formatted_address: placeResults.title || address,
+              geometry: {
+                location: { lat: latitude, lng: longitude }
+              }
+            }],
+            status: 'OK'
+          };
+          
+          console.log(`✅ Geocoding for "${address}" from place_results: ${latitude}, ${longitude}`);
+          return res.json(geocodeResult);
+        }
+        
+        if (placeResults.data && placeResults.data.latitude && placeResults.data.longitude) {
+          const lat = parseFloat(placeResults.data.latitude);
+          const lng = parseFloat(placeResults.data.longitude);
+          
+          const geocodeResult = {
+            results: [{
+              formatted_address: placeResults.title || address,
+              geometry: {
+                location: { lat, lng }
+              }
+            }],
+            status: 'OK'
+          };
+          
+          console.log(`✅ Geocoding for "${address}" from place_results.data: ${lat}, ${lng}`);
+          return res.json(geocodeResult);
+        }
+      }
+      
       if (response.data.search_information && response.data.search_information.location) {
         const locationInfo = response.data.search_information.location;
         if (locationInfo.coordinates && locationInfo.coordinates.latitude && locationInfo.coordinates.longitude) {
@@ -182,18 +205,94 @@ router.get('/', async (req, res) => {
         }
       }
       
-      // If we get here, no usable location was found
-      // First, log the structure to help debugging
+      if (response.data.place_results && response.data.place_results.link) {
+        const link = response.data.place_results.link;
+        const linkMatches = link.match(/[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+        
+        if (linkMatches && linkMatches.length >= 3) {
+          const lat = parseFloat(linkMatches[1]);
+          const lng = parseFloat(linkMatches[2]);
+          
+          const geocodeResult = {
+            results: [{
+              formatted_address: response.data.place_results.title || address,
+              geometry: {
+                location: { lat, lng }
+              }
+            }],
+            status: 'OK'
+          };
+          
+          console.log(`✅ Geocoding for "${address}" from place_results.link: ${lat}, ${lng}`);
+          return res.json(geocodeResult);
+        }
+        
+        const coordMatches = link.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        
+        if (coordMatches && coordMatches.length >= 3) {
+          const lat = parseFloat(coordMatches[1]);
+          const lng = parseFloat(coordMatches[2]);
+          
+          const geocodeResult = {
+            results: [{
+              formatted_address: response.data.place_results.title || address,
+              geometry: {
+                location: { lat, lng }
+              }
+            }],
+            status: 'OK'
+          };
+          
+          console.log(`✅ Geocoding for "${address}" from place_results.link alternate pattern: ${lat}, ${lng}`);
+          return res.json(geocodeResult);
+        }
+      }
+      
       console.log('Response structure keys:', Object.keys(response.data));
       
       if (response.data.search_parameters) {
         console.log('Search parameters:', response.data.search_parameters);
       }
       
-      // Check if we at least got search metadata that indicates search was performed
+      if (response.data.place_results) {
+        console.log('Place results keys:', Object.keys(response.data.place_results));
+        console.log('Place title:', response.data.place_results.title);
+        if (response.data.place_results.link) {
+          console.log('Place link:', response.data.place_results.link);
+        }
+      }
+      
       if (response.data.search_metadata && response.data.search_metadata.status === 'Success') {
         console.warn('Geocoding found no results for:', address);
         console.log('Query executed successfully but no coordinates found');
+        
+        const wellKnownLocations = {
+          'bandung': { lat: -6.9175, lng: 107.6191 },
+          'bandung, jawa barat': { lat: -6.9175, lng: 107.6191 },
+          'jakarta': { lat: -6.2088, lng: 106.8456 },
+          'surabaya': { lat: -7.2575, lng: 112.7521 },
+          'yogyakarta': { lat: -7.7971, lng: 110.3688 },
+          'bali': { lat: -8.3405, lng: 115.0920 },
+          'denpasar': { lat: -8.6705, lng: 115.2126 },
+        };
+        
+        const normalizedAddress = address.toLowerCase().trim();
+        if (wellKnownLocations[normalizedAddress]) {
+          const { lat, lng } = wellKnownLocations[normalizedAddress];
+          
+          const geocodeResult = {
+            results: [{
+              formatted_address: address,
+              geometry: {
+                location: { lat, lng }
+              }
+            }],
+            status: 'OK'
+          };
+          
+          console.log(`✅ Geocoding for "${address}" from hardcoded locations: ${lat}, ${lng}`);
+          return res.json(geocodeResult);
+        }
         
         return res.status(404).json({ 
           message: 'Lokasi tidak ditemukan. Coba masukkan nama lokasi yang lebih spesifik.', 
@@ -219,10 +318,8 @@ router.get('/', async (req, res) => {
       });
     }
   } catch (error) {
-    // Handle common errors
     console.error('Error in /api/geocode:', error);
     
-    // Check for specific error types
     if (error.code === 'ECONNABORTED') {
       return res.status(504).json({
         message: 'Koneksi ke layanan geocoding timeout',
@@ -232,14 +329,11 @@ router.get('/', async (req, res) => {
     }
     
     if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
       console.error('SerpAPI Error Response:', {
         status: error.response.status,
         data: error.response.data
       });
       
-      // Check for specific error status codes
       if (error.response.status === 401 || error.response.status === 403) {
         return res.status(500).json({
           message: 'API key tidak valid atau kuota habis',
@@ -254,7 +348,6 @@ router.get('/', async (req, res) => {
         status: error.response.status
       });
     } else if (error.request) {
-      // The request was made but no response was received
       console.error('No response received from SerpAPI');
       return res.status(503).json({ 
         message: 'Tidak ada respon dari layanan geocoding', 
@@ -262,7 +355,6 @@ router.get('/', async (req, res) => {
         status: 'SERVICE_UNAVAILABLE'
       });
     } else {
-      // Something happened in setting up the request that triggered an Error
       return res.status(500).json({ 
         message: 'Gagal mengkonversi alamat menjadi koordinat', 
         error: error.message,

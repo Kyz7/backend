@@ -1,4 +1,3 @@
-// services/flightService.js
 const axios = require('axios');
 
 const AVIATIONSTACK_API_KEY = process.env.AVIATIONSTACK_API_KEY;

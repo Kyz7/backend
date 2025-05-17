@@ -1,4 +1,3 @@
-// routes/flight.js
 const express = require('express');
 const flightService = require('../services/flightService');
 const router = express.Router();

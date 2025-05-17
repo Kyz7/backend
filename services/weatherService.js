@@ -1,10 +1,8 @@
-// services/weatherService.js
 const axios = require('axios');
 
 const OPEN_METEO_BASE = 'https://api.open-meteo.com/v1/forecast';
 
 /**
- * Get weather forecast data for a specific location and date
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
  * @param {string} date - Date in YYYY-MM-DD format
@@ -29,7 +27,6 @@ const getWeatherForecast = async (lat, lon, date) => {
       }
     });
     
-    // Add some processing to make the data more usable in the frontend
     const processedData = {
       ...response.data,
       formatted: {
@@ -58,8 +55,7 @@ const getWeatherForecast = async (lat, lon, date) => {
  * @returns {string} Human-readable weather condition
  */
 const getWeatherCondition = (code) => {
-  // WMO Weather interpretation codes (WW)
-  // https://open-meteo.com/en/docs
+
   if (code === 0) return 'Cerah';
   if (code === 1) return 'Cerah Berawan';
   if (code >= 2 && code <= 3) return 'Berawan';
