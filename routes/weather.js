@@ -1,5 +1,8 @@
-// routes/weather.jsconst express = require('express');const router = express.Router();
+const express = require('express');
+const axios = require('axios');
+const router = express.Router();
 const { getWeatherForecast } = require('../services/weatherService');
+
 
 /**
  * @route
@@ -12,7 +15,6 @@ const { getWeatherForecast } = require('../services/weatherService');
 router.get('/', async (req, res) => {
   const { lat, lon, date = new Date().toISOString().split('T')[0] } = req.query;
 
-  // Validate parameters
   if (!lat || !lon) {
     return res.status(400).json({ 
       success: false,

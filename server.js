@@ -7,19 +7,16 @@ const planRoutes = require('./routes/plans');
 const placeRoutes = require('./routes/places');
 const estimateRoutes = require('./routes/estimate');
 const flightRoutes = require('./routes/flight');
-const cors = require('cors');
-
-const helmet = require('helmet');
-const morgan = require('morgan');
-
-// Import routes
 const weatherRoutes = require('./routes/weather');
 const detailsRoutes = require('./routes/details');
 const geocodeRoutes = require('./routes/geocode');
 
-// Enable CORS for your frontend origin
+const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
+
 app.use(cors({
-  origin: 'http://localhost:3001' // Your frontend URL
+  origin: 'http://localhost:3001'
 }));
 
 app.use(express.urlencoded({ extended: false }));
@@ -48,10 +45,8 @@ if (detailsRoutes) {
 }
 
 if (process.env.NODE_ENV === 'production') {
-  // Set static folder
   app.use(express.static('client/build'));
 
-  // SPA fallback
   app.get('*', (req, res) => {
     res.sendFile(path.resolve(__dirname, 'client', 'build', 'index.html'));
   });

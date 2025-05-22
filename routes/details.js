@@ -1,20 +1,17 @@
-// routes/details.js
 const express = require('express');
 const router = express.Router();
 const { getPlacesData } = require('../services/placesService');
 
 /**
- * @route GET /api/details/:id
- * @description Get place details by ID
- * @param {string} id - Place ID
- * @returns {Object} Place details
+ * @route
+ * @description
+ * @param {string} id
+ * @returns {Object}
  */
 router.get('/:id', async (req, res) => {
   const { id } = req.params;
   
   try {
-    // For a real app, you would fetch real data from a database
-    // For now, create a dummy place as a placeholder
     const dummyPlace = {
       id,
       title: `Tempat Wisata ${id}`,
@@ -52,8 +49,8 @@ router.get('/:id', async (req, res) => {
 });
 
 /**
- * @route GET /api/details/search
- * @description Search places by query
+ * @route 
+ * @description 
  * @param {number} lat - Latitude
  * @param {number} lon - Longitude
  * @param {string} query - Search query (optional)

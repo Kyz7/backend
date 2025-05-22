@@ -3,9 +3,8 @@ const axios = require('axios');
 const SERPAPI_API_KEY = process.env.SERPAPI_KEY;
 const SERPAPI_URL = 'https://serpapi.com/search';
 
-const getPlacesData = async (lat, lon, query = 'tempat wisata', locationName = '') => {
+const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit = 9, locationName = '') => {
   try {
-
     if (!SERPAPI_API_KEY) {
       console.error('SERPAPI_KEY is not defined in environment variables');
       throw new Error('Server configuration error: API key not found');
@@ -34,7 +33,6 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', locationName = '
           if (firstResult.address) {
             const addressParts = firstResult.address.split(',').map(part => part.trim());
             if (addressParts.length >= 2) {
-
               location = addressParts[1];
             } else {
               location = addressParts[0]; 
@@ -59,7 +57,10 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', locationName = '
       }
     }
     
-    console.log(`🔍 Searching for ${query || 'tempat wisata'} around ${location}`);
+    console.log(`🔍 Searching for ${query || 'tempat wisata'} around ${location} (Page ${page})`);
+    
+    // Calculate start parameter for SerpAPI pagination
+    const start = (page - 1) * limit;
     
     const response = await axios.get(SERPAPI_URL, {
       params: {
@@ -70,18 +71,17 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', locationName = '
         ll: `@${lat},${lon},14z`,
         hl: 'id',
         gl: 'ID',
+        start: start, // SerpAPI pagination parameter
+        num: limit * 2, // Get more results to ensure we have enough after processing
         api_key: SERPAPI_API_KEY
       },
       timeout: 15000 
     });
 
-
     if (response.data && response.data.local_results && response.data.local_results.length > 0) {
-      console.log(`✅ Found ${response.data.local_results.length} places in ${location}:`);
+      console.log(`✅ Found ${response.data.local_results.length} places in ${location} (Page ${page}):`);
       
-
       const processedPlaces = response.data.local_results.map(place => {
-
         let thumbnail = place.thumbnail;
 
         return {
@@ -96,10 +96,40 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', locationName = '
         };
       });
       
-      return processedPlaces;
+      // Apply client-side pagination to ensure exact limit
+      const startIndex = 0;
+      const endIndex = limit;
+      const paginatedPlaces = processedPlaces.slice(startIndex, endIndex);
+      
+      // Calculate total pages (estimate based on available data)
+      const totalResults = response.data.local_results.length;
+      const hasNextPage = totalResults >= limit;
+      const totalPages = hasNextPage ? page + 1 : page; // Conservative estimate
+      
+      return {
+        places: paginatedPlaces,
+        pagination: {
+          currentPage: page,
+          totalPages: totalPages,
+          hasNextPage: hasNextPage,
+          hasPreviousPage: page > 1,
+          totalResults: totalResults,
+          resultsPerPage: limit
+        }
+      };
     } else {
-      console.log(`⚠️ No places found in ${location}.`);
-      return [];
+      console.log(`⚠️ No places found in ${location} (Page ${page}).`);
+      return {
+        places: [],
+        pagination: {
+          currentPage: page,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+          totalResults: 0,
+          resultsPerPage: limit
+        }
+      };
     }
   } catch (error) {
     console.error('❌ Error in placesService:', {
