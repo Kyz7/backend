@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const app = express();
-const connectDB = require('./config/db');
+const sequelize = require('./config/db');
 const authRoutes = require('./routes/auth');
 const planRoutes = require('./routes/plans');
 const placeRoutes = require('./routes/places');
@@ -10,16 +10,28 @@ const flightRoutes = require('./routes/flight');
 const weatherRoutes = require('./routes/weather');
 const detailsRoutes = require('./routes/details');
 const geocodeRoutes = require('./routes/geocode');
-
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
 app.use(cors({
-  origin: 'http://localhost:3001'
+  origin: 'http://localhost:3001',
+  credentials: true
 }));
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ 
+  limit: '50mb',
+  parameterLimit: 50000 
+}));
+
+app.use(express.urlencoded({ 
+  limit: '50mb', 
+  extended: true,
+  parameterLimit: 50000 
+}));
+
+
+// app.use(express.urlencoded({ extended: false }));
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -30,7 +42,7 @@ app.use(helmet({
 }));
 app.use(morgan('dev'));
 
-connectDB();
+
 app.use(express.json());
 
 app.use('/api/geocode', geocodeRoutes); 
@@ -65,3 +77,23 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Smart Travel Planner backend is running on port ${PORT}`);
 });
+
+const startServer = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log('Database connected successfully');
+    
+    // Sync models (create tables)
+    await sequelize.sync({ force: false }); // Set true untuk drop tables
+    console.log('Database synced');
+    
+    const PORT = process.env.PORT || 3001;
+    app.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('Unable to start server:', error);
+  }
+};
+
+startServer();
