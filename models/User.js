@@ -8,17 +8,24 @@ const User = sequelize.define('User', {
     autoIncrement: true
   },
   username: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(50),
     allowNull: false,
-    unique: true
+    unique: true,
+    validate: {
+      len: [3, 50]
+    }
   },
   password: {
-    type: DataTypes.STRING,
-    allowNull: false
+    type: DataTypes.STRING(255),
+    allowNull: false,
+    validate: {
+      len: [6, 255]
+    }
   }
 }, {
   tableName: 'users',
-  timestamps: true // createdAt, updatedAt
+  timestamps: false,
+  underscored: true
 });
 
 module.exports = User;

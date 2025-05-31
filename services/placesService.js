@@ -2,14 +2,18 @@ const axios = require('axios');
 
 const SERPAPI_API_KEY = process.env.SERPAPI_KEY;
 const SERPAPI_URL = 'https://serpapi.com/search';
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
-const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit = 9, locationName = '') => {
+const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit = 9, locationName = '', userAgent = '') => {
   try {
     if (!SERPAPI_API_KEY) {
       console.error('SERPAPI_KEY is not defined in environment variables');
       throw new Error('Server configuration error: API key not found');
     }
 
+    // Detect if request comes from Flutter web
+    const isFlutterWeb = userAgent.includes('dart') || userAgent.includes('flutter');
+    
     let location = locationName;
     
     if (!location) {
@@ -57,9 +61,8 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit 
       }
     }
     
-    console.log(`🔍 Searching for ${query || 'tempat wisata'} around ${location} (Page ${page})`);
+    console.log(`🔍 Searching for ${query || 'tempat wisata'} around ${location} (Page ${page}) - Client: ${isFlutterWeb ? 'Flutter Web' : 'React/Other'}`);
     
-    // Calculate start parameter for SerpAPI pagination
     const start = (page - 1) * limit;
     
     const response = await axios.get(SERPAPI_URL, {
@@ -71,8 +74,8 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit 
         ll: `@${lat},${lon},14z`,
         hl: 'id',
         gl: 'ID',
-        start: start, // SerpAPI pagination parameter
-        num: limit * 2, // Get more results to ensure we have enough after processing
+        start: start,
+        num: limit * 2,
         api_key: SERPAPI_API_KEY
       },
       timeout: 15000 
@@ -83,6 +86,12 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit 
       
       const processedPlaces = response.data.local_results.map(place => {
         let thumbnail = place.thumbnail;
+        
+        // For Flutter web, use proxy URLs to avoid CORS
+        // For React, keep original URLs (they work fine)
+        if (isFlutterWeb && thumbnail && thumbnail.includes('serpapi.com')) {
+          thumbnail = `${BASE_URL}/api/image/proxy-image?url=${encodeURIComponent(thumbnail)}`;
+        }
 
         return {
           ...place,
@@ -92,19 +101,19 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit 
           rating: place.rating || 0,
           reviews: place.reviews || 0,
           thumbnail: thumbnail || null,
+          // Add original URL for React frontend if needed
+          originalThumbnail: place.thumbnail || null,
           category: place.category || 'Tourist Attraction'
         };
       });
       
-      // Apply client-side pagination to ensure exact limit
       const startIndex = 0;
       const endIndex = limit;
       const paginatedPlaces = processedPlaces.slice(startIndex, endIndex);
       
-      // Calculate total pages (estimate based on available data)
       const totalResults = response.data.local_results.length;
       const hasNextPage = totalResults >= limit;
-      const totalPages = hasNextPage ? page + 1 : page; // Conservative estimate
+      const totalPages = hasNextPage ? page + 1 : page;
       
       return {
         places: paginatedPlaces,
@@ -115,6 +124,10 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit 
           hasPreviousPage: page > 1,
           totalResults: totalResults,
           resultsPerPage: limit
+        },
+        meta: {
+          isFlutterWeb: isFlutterWeb,
+          userAgent: userAgent
         }
       };
     } else {
@@ -128,6 +141,10 @@ const getPlacesData = async (lat, lon, query = 'tempat wisata', page = 1, limit 
           hasPreviousPage: false,
           totalResults: 0,
           resultsPerPage: limit
+        },
+        meta: {
+          isFlutterWeb: isFlutterWeb,
+          userAgent: userAgent
         }
       };
     }

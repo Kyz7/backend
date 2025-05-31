@@ -15,7 +15,14 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 
 app.use(cors({
-  origin: 'http://localhost:3001',
+  origin: function (origin, callback) {
+    // Izinkan semua localhost:* untuk development
+    if (!origin || origin.startsWith('http://localhost:3001')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 

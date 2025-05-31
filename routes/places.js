@@ -20,12 +20,17 @@ router.get('/', async (req, res) => {
   }
 
   try {
+    // Get user agent from headers
+    const userAgent = req.get('User-Agent') || '';
+    
     const result = await getPlacesData(
       lat.trim(), 
       lon.trim(), 
       query || '', 
       pageNum, 
-      limitNum
+      limitNum,
+      '', // locationName
+      userAgent // pass user agent for detection
     );
     
     res.json(result);
