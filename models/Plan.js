@@ -46,7 +46,20 @@ const Plan = sequelize.define('Plan', {
   },
   flight: {
     type: DataTypes.JSON,
-    allowNull: true
+    allowNull: true,
+    get() {
+      const rawValue = this.getDataValue('flight');
+      return rawValue ? JSON.parse(JSON.stringify(rawValue)) : null;
+    }
+  },
+  // ✅ ADDED: travelers field to store adults and children count
+  travelers: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    get() {
+      const rawValue = this.getDataValue('travelers');
+      return rawValue ? JSON.parse(JSON.stringify(rawValue)) : null;
+    }
   }
 }, {
   tableName: 'plans',

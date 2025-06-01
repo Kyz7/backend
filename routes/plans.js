@@ -31,12 +31,54 @@ const flexibleAuth = (req, res, next) => {
 };
 
 // Create new plan
+router.get('/', flexibleAuth, async (req, res) => {
+  try {
+    console.log('📍 Getting plans for user:', req.user.id);
+    
+    const plans = await Plan.findAll({
+      where: { userId: req.user.id },
+      include: [{
+        model: User,
+        as: 'user',
+        attributes: ['id', 'username']
+      }],
+      order: [['createdAt', 'DESC']],
+      raw: false // Pastikan tidak menggunakan raw query
+    });
+    
+    console.log('📍 Found plans:', plans.length);
+    
+    // Debug setiap plan
+    plans.forEach((plan, index) => {
+      console.log(`Plan ${index + 1}:`);
+      console.log('- ID:', plan.id);
+      console.log('- Raw dateRange dari DB:', plan.getDataValue('dateRange'));
+      console.log('- Processed dateRange:', plan.dateRange);
+      console.log('- Type of dateRange:', typeof plan.dateRange);
+      console.log('---');
+    });
+    
+    res.json({ plans });
+  } catch (error) {
+    console.error('Get plans error:', error);
+    res.status(500).json({ message: 'Gagal mengambil plan', details: error.message });
+  }
+});
+
+// Create new plan - tambahkan debug
 router.post('/', auth, async (req, res) => {
   try {
+    console.log('📍 Creating plan with data:', req.body);
+    console.log('📍 DateRange from request:', req.body.dateRange);
+    console.log('📍 Type of dateRange:', typeof req.body.dateRange);
+    
     const plan = await Plan.create({ 
       ...req.body, 
-      userId: req.user.id // Changed from 'user' to 'userId'
+      userId: req.user.id
     });
+    
+    console.log('📍 Plan created with ID:', plan.id);
+    console.log('📍 Saved dateRange:', plan.dateRange);
     
     // Fetch the created plan with user info
     const createdPlan = await Plan.findByPk(plan.id, {
@@ -47,33 +89,12 @@ router.post('/', auth, async (req, res) => {
       }]
     });
     
+    console.log('📍 Fetched plan dateRange:', createdPlan.dateRange);
+    
     res.json({ message: 'Plan saved', plan: createdPlan });
   } catch (error) {
     console.error('Save plan error:', error);
     res.status(500).json({ message: 'Gagal menyimpan plan', details: error.message });
-  }
-});
-
-// Get all plans for user
-router.get('/', flexibleAuth, async (req, res) => {
-  try {
-    console.log('📍 Getting plans for user:', req.user.id);
-    
-    const plans = await Plan.findAll({
-      where: { userId: req.user.id }, // Changed from user to userId
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'username']
-      }],
-      order: [['createdAt', 'DESC']] // Changed from sort to order
-    });
-    
-    console.log('📍 Found plans:', plans.length);
-    res.json({ plans });
-  } catch (error) {
-    console.error('Get plans error:', error);
-    res.status(500).json({ message: 'Gagal mengambil plan', details: error.message });
   }
 });
 

@@ -8,27 +8,62 @@ const User = require('../models/User');
 router.post('/register', async (req, res) => {
   const { username, password } = req.body;
   
+  // Validation
   if (!username || !password) {
     return res.status(400).json({ error: 'Username dan password harus diisi' });
   }
   
+  if (username.length < 3 || username.length > 50) {
+    return res.status(400).json({ error: 'Username harus 3-50 karakter' });
+  }
+  
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password minimal 6 karakter' });
+  }
+  
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    return res.status(400).json({ error: 'Username hanya boleh mengandung huruf, angka, dan underscore' });
+  }
+  
   try {
     // Check if user exists
-    const existingUser = await User.findOne({ where: { username } });
+    const existingUser = await User.findOne({ where: { username: username.trim() } });
     if (existingUser) {
       return res.status(400).json({ error: 'Username sudah digunakan' });
     }
     
-    const hashed = await bcrypt.hash(password, 10);
-    const user = await User.create({ username, password: hashed });
+    // Hash password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(password, saltRounds);
     
-    res.json({ 
-      message: 'User created successfully', 
+    // Create user
+    const user = await User.create({ 
+      username: username.trim(), 
+      password: hashedPassword 
+    });
+    
+    console.log('User created successfully:', { id: user.id, username: user.username });
+    
+    res.status(201).json({ 
+      message: 'Pendaftaran berhasil! Silakan login.',
       user: { id: user.id, username: user.username }
     });
+    
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ error: 'Gagal register', details: error.message });
+    
+    // Handle Sequelize validation errors
+    if (error.name === 'SequelizeValidationError') {
+      const validationErrors = error.errors.map(err => err.message);
+      return res.status(400).json({ error: validationErrors.join(', ') });
+    }
+    
+    // Handle unique constraint error
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      return res.status(400).json({ error: 'Username sudah digunakan' });
+    }
+    
+    res.status(500).json({ error: 'Gagal mendaftar. Silakan coba lagi.' });
   }
 });
 
@@ -36,18 +71,43 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { username, password } = req.body;
   
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Username dan password harus diisi' });
+  }
+  
   try {
-    const user = await User.findOne({ where: { username } });
+    const user = await User.findOne({ where: { username: username.trim() } });
     
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ message: 'Login gagal' });
+    if (!user) {
+      return res.status(401).json({ error: 'Username atau password salah' });
+    }
+    
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: 'Username atau password salah' });
+    }
+    
+    // Check JWT_SECRET
+    if (!process.env.JWT_SECRET) {
+      console.error('JWT_SECRET not set');
+      return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user.id, username: user.username } });
+    const token = jwt.sign(
+      { id: user.id, username: user.username }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: '7d' }
+    );
+    
+    res.json({ 
+      message: 'Login berhasil',
+      token, 
+      user: { id: user.id, username: user.username } 
+    });
+    
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Login error' });
+    res.status(500).json({ error: 'Gagal login. Silakan coba lagi.' });
   }
 });
 
