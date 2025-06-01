@@ -18,27 +18,37 @@ const Plan = sequelize.define('Plan', {
     onDelete: 'CASCADE'
   },
   place: {
-    type: DataTypes.JSON, // Store entire place object as JSON
-    allowNull: true,
-    get() {
-      const rawValue = this.getDataValue('place');
-      return rawValue ? JSON.parse(JSON.stringify(rawValue)) : null;
+    type: DataTypes.JSON,
+    allowNull: false, // Ubah ke required
+    validate: {
+      notNull: {
+        msg: 'Place data is required'
+      },
+      isValidPlace(value) {
+        if (!value || !value.name) {
+          throw new Error('Place must have a name');
+        }
+      }
     }
   },
   dateRange: {
-    type: DataTypes.JSON, // Store date range as JSON
-    allowNull: true,
-    get() {
-      const rawValue = this.getDataValue('dateRange');
-      return rawValue ? {
-        from: rawValue.from ? new Date(rawValue.from) : null,
-        to: rawValue.to ? new Date(rawValue.to) : null
-      } : null;
+    type: DataTypes.JSON,
+    allowNull: false, // Ubah ke required
+    validate: {
+      notNull: {
+        msg: 'Date range is required'
+      },
+      isValidDateRange(value) {
+        if (!value || !value.from || !value.to) {
+          throw new Error('Date range must have from and to dates');
+        }
+      }
     }
   },
   estimatedCost: {
     type: DataTypes.DECIMAL(15, 2),
-    allowNull: true
+    allowNull: true,
+    defaultValue: 0
   },
   weather: {
     type: DataTypes.STRING,
@@ -46,24 +56,32 @@ const Plan = sequelize.define('Plan', {
   },
   flight: {
     type: DataTypes.JSON,
-    allowNull: true,
-    get() {
-      const rawValue = this.getDataValue('flight');
-      return rawValue ? JSON.parse(JSON.stringify(rawValue)) : null;
-    }
+    allowNull: true
   },
-  // ✅ ADDED: travelers field to store adults and children count
   travelers: {
     type: DataTypes.JSON,
     allowNull: true,
-    get() {
-      const rawValue = this.getDataValue('travelers');
-      return rawValue ? JSON.parse(JSON.stringify(rawValue)) : null;
+    defaultValue: {
+      adults: 1,
+      children: 0
     }
   }
 }, {
   tableName: 'plans',
-  timestamps: true
+  timestamps: true,
+  hooks: {
+    beforeCreate: (plan, options) => {
+      console.log('Before create hook - Plan data:', {
+        userId: plan.userId,
+        place: plan.place,
+        dateRange: plan.dateRange,
+        travelers: plan.travelers
+      });
+    },
+    afterCreate: (plan, options) => {
+      console.log('After create hook - Plan saved with ID:', plan.id);
+    }
+  }
 });
 
 // Associations

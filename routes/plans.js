@@ -1,86 +1,66 @@
-// File: routes/plans.js - Updated for MySQL with Sequelize
+// routes/plans.js - Versi dengan debugging lengkap
 const express = require('express');
 const router = express.Router();
 const Plan = require('../models/Plan');
 const User = require('../models/User');
 const auth = require('../utils/authMiddleware');
-const jwt = require('jsonwebtoken');
 
-// Alternative auth middleware that checks query params too
-const flexibleAuth = (req, res, next) => {
-  // First try normal header auth
-  let token = req.headers.authorization?.split(' ')[1];
-  
-  // If no header token, try query parameter (fallback for 431 errors)
-  if (!token) {
-    token = req.query.token;
-  }
-  
-  if (!token) {
-    return res.status(401).json({ message: 'Token tidak ditemukan' });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    console.error('Token verification failed:', error.message);
-    return res.status(403).json({ message: 'Token tidak valid' });
-  }
-};
-
-// Create new plan
-router.get('/', flexibleAuth, async (req, res) => {
-  try {
-    console.log('📍 Getting plans for user:', req.user.id);
-    
-    const plans = await Plan.findAll({
-      where: { userId: req.user.id },
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'username']
-      }],
-      order: [['createdAt', 'DESC']],
-      raw: false // Pastikan tidak menggunakan raw query
-    });
-    
-    console.log('📍 Found plans:', plans.length);
-    
-    // Debug setiap plan
-    plans.forEach((plan, index) => {
-      console.log(`Plan ${index + 1}:`);
-      console.log('- ID:', plan.id);
-      console.log('- Raw dateRange dari DB:', plan.getDataValue('dateRange'));
-      console.log('- Processed dateRange:', plan.dateRange);
-      console.log('- Type of dateRange:', typeof plan.dateRange);
-      console.log('---');
-    });
-    
-    res.json({ plans });
-  } catch (error) {
-    console.error('Get plans error:', error);
-    res.status(500).json({ message: 'Gagal mengambil plan', details: error.message });
-  }
-});
-
-// Create new plan - tambahkan debug
+// Create new plan dengan debugging lengkap
 router.post('/', auth, async (req, res) => {
   try {
-    console.log('📍 Creating plan with data:', req.body);
-    console.log('📍 DateRange from request:', req.body.dateRange);
-    console.log('📍 Type of dateRange:', typeof req.body.dateRange);
+    console.log('=== DEBUGGING SAVE PLAN ===');
+    console.log('1. User ID:', req.user.id);
+    console.log('2. Request body:', JSON.stringify(req.body, null, 2));
     
-    const plan = await Plan.create({ 
-      ...req.body, 
-      userId: req.user.id
-    });
+    // Validasi user exists
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      console.log('❌ User not found');
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+    console.log('✅ User found:', user.username);
     
-    console.log('📍 Plan created with ID:', plan.id);
-    console.log('📍 Saved dateRange:', plan.dateRange);
+    // Prepare data dengan validasi
+    const planData = {
+      userId: req.user.id,
+      place: req.body.place,
+      dateRange: req.body.dateRange,
+      estimatedCost: req.body.estimatedCost || 0,
+      travelers: req.body.travelers,
+      flight: req.body.flight || null
+    };
     
-    // Fetch the created plan with user info
+    console.log('3. Prepared plan data:', JSON.stringify(planData, null, 2));
+    
+    // Validasi data required
+    if (!planData.place || !planData.dateRange) {
+      console.log('❌ Missing required fields');
+      return res.status(400).json({ 
+        message: 'Data tidak lengkap',
+        missing: {
+          place: !planData.place,
+          dateRange: !planData.dateRange
+        }
+      });
+    }
+    
+    // Create plan dengan try-catch khusus
+    let plan;
+    try {
+      plan = await Plan.create(planData);
+      console.log('✅ Plan created with ID:', plan.id);
+    } catch (createError) {
+      console.log('❌ Error creating plan:', createError);
+      console.log('Error details:', {
+        name: createError.name,
+        message: createError.message,
+        sql: createError.sql,
+        parameters: createError.parameters
+      });
+      throw createError;
+    }
+    
+    // Fetch created plan dengan relasi
     const createdPlan = await Plan.findByPk(plan.id, {
       include: [{
         model: User,
@@ -89,96 +69,97 @@ router.post('/', auth, async (req, res) => {
       }]
     });
     
-    console.log('📍 Fetched plan dateRange:', createdPlan.dateRange);
+    console.log('4. Final plan data:', {
+      id: createdPlan.id,
+      userId: createdPlan.userId,
+      place: createdPlan.place,
+      dateRange: createdPlan.dateRange,
+      estimatedCost: createdPlan.estimatedCost,
+      travelers: createdPlan.travelers,
+      flight: createdPlan.flight
+    });
     
-    res.json({ message: 'Plan saved', plan: createdPlan });
+    res.json({ 
+      message: 'Plan berhasil disimpan',
+      plan: createdPlan 
+    });
+    
   } catch (error) {
-    console.error('Save plan error:', error);
-    res.status(500).json({ message: 'Gagal menyimpan plan', details: error.message });
+    console.error('=== SAVE PLAN ERROR ===');
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    if (error.name === 'SequelizeValidationError') {
+      console.error('Validation errors:', error.errors);
+      return res.status(400).json({ 
+        message: 'Data tidak valid',
+        errors: error.errors.map(e => ({
+          field: e.path,
+          message: e.message
+        }))
+      });
+    }
+    
+    if (error.name === 'SequelizeForeignKeyConstraintError') {
+      console.error('Foreign key error:', error.fields);
+      return res.status(400).json({ 
+        message: 'User ID tidak valid',
+        details: error.message
+      });
+    }
+    
+    res.status(500).json({ 
+      message: 'Gagal menyimpan plan',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+    });
   }
 });
 
-// Get single plan by ID
-router.get('/:id', flexibleAuth, async (req, res) => {
+// Get plans dengan debugging
+router.get('/', async (req, res) => {
   try {
-    const plan = await Plan.findByPk(req.params.id, {
+    // Flexible auth inline
+    let token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      token = req.query.token;
+    }
+    
+    if (!token) {
+      return res.status(401).json({ message: 'Token tidak ditemukan' });
+    }
+
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    console.log('=== DEBUGGING GET PLANS ===');
+    console.log('User ID:', decoded.id);
+    
+    const plans = await Plan.findAll({
+      where: { userId: decoded.id },
       include: [{
         model: User,
         as: 'user',
         attributes: ['id', 'username']
-      }]
+      }],
+      order: [['createdAt', 'DESC']]
     });
     
-    if (!plan) {
-      return res.status(404).json({ message: 'Rencana perjalanan tidak ditemukan' });
-    }
-    
-    // Check if user owns this plan
-    if (plan.userId !== req.user.id) {
-      return res.status(403).json({ message: 'Anda tidak diizinkan mengakses rencana ini' });
-    }
-    
-    res.json({ plan });
-  } catch (error) {
-    console.error('Get plan error:', error);
-    res.status(500).json({ message: 'Gagal mengambil plan', details: error.message });
-  }
-});
-
-// Update plan
-router.put('/:id', auth, async (req, res) => {
-  try {
-    const plan = await Plan.findByPk(req.params.id);
-    
-    if (!plan) {
-      return res.status(404).json({ message: 'Rencana perjalanan tidak ditemukan' });
-    }
-    
-    // Check ownership
-    if (plan.userId !== req.user.id) {
-      return res.status(403).json({ message: 'Anda tidak diizinkan mengubah rencana ini' });
-    }
-    
-    // Update the plan
-    await plan.update(req.body);
-    
-    // Fetch updated plan with user info
-    const updatedPlan = await Plan.findByPk(plan.id, {
-      include: [{
-        model: User,
-        as: 'user',
-        attributes: ['id', 'username']
-      }]
+    console.log('Found plans count:', plans.length);
+    plans.forEach((plan, index) => {
+      console.log(`Plan ${index + 1}:`, {
+        id: plan.id,
+        place: plan.place?.name,
+        dateRange: plan.dateRange,
+        createdAt: plan.createdAt
+      });
     });
     
-    res.json({ message: 'Rencana perjalanan berhasil diupdate', plan: updatedPlan });
+    res.json({ plans });
+    
   } catch (error) {
-    console.error('Update plan error:', error);
-    res.status(500).json({ message: 'Gagal mengupdate rencana perjalanan', details: error.message });
-  }
-});
-
-// Delete plan
-router.delete('/:id', auth, async (req, res) => {
-  try {
-    const plan = await Plan.findByPk(req.params.id);
-    
-    if (!plan) {
-      return res.status(404).json({ message: 'Rencana perjalanan tidak ditemukan' });
-    }
-    
-    // Check ownership - Changed from toString() to direct comparison
-    if (plan.userId !== req.user.id) {
-      return res.status(403).json({ message: 'Anda tidak diizinkan menghapus rencana ini' });
-    }
-    
-    // Delete the plan
-    await plan.destroy(); // Changed from findByIdAndDelete to destroy()
-    
-    res.json({ message: 'Rencana perjalanan berhasil dihapus' });
-  } catch (error) {
-    console.error('Delete plan error:', error);
-    res.status(500).json({ message: 'Gagal menghapus rencana perjalanan', details: error.message });
+    console.error('Get plans error:', error);
+    res.status(500).json({ message: 'Gagal mengambil plans' });
   }
 });
 
